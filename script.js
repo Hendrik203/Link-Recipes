@@ -157,9 +157,7 @@ function render() {
   };
 
   if (view === 'tiles') {
-    const open = items.find(i => i.id === openId);
-    list.innerHTML = `<div class="grid">${items.map(tileHTML).join('')}</div>` +
-      (open ? `<div class="modal"><div class="modal-card"><button class="modal-close">✕ Schließen</button>${cardHTML(open)}</div></div>` : '');
+    list.innerHTML = `<div class="grid">${items.map(tileHTML).join('')}</div>`;
     // Fehlende Vorschaubilder nachladen
     state.items.forEach(i => { if (i.kind === 'tiktok' && !i.thumb) refreshThumb(i.id); });
   } else {
@@ -280,20 +278,23 @@ document.getElementById('list').addEventListener('change', e => {
   const it = state.items.find(i => i.id === card.dataset.id);
   if (it && e.target.classList.contains('f-tab')) { it.tab = e.target.value; save(); render(); }
 });
-// Merken, wo der Klick angefangen hat: Wer im Rezept Text markiert und die Maus
-// außerhalb loslässt, soll das Rezept nicht versehentlich schließen.
-let pressStartedOnBackdrop = false;
-document.getElementById('list').addEventListener('pointerdown', e => {
-  pressStartedOnBackdrop = e.target.classList.contains('modal');
-});
+// Kachel angetippt: zur Listen-Ansicht wechseln und direkt zu diesem Rezept springen.
+// (Die Einstellung wird nicht gespeichert – beim nächsten Öffnen ist wieder die Kachel-Ansicht da.)
+function showRecipe(id) {
+  view = 'list';
+  render();
+  const el = document.querySelector(`.item[data-id="${id}"]`);
+  if (!el) return;
+  const d = el.querySelector('details');
+  if (d) d.open = true;                       // Infos gleich aufklappen (zum Umbenennen)
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 1500);
+}
 
 document.getElementById('list').addEventListener('click', e => {
   const tile = e.target.closest('.tile');
-  if (tile) { openId = tile.dataset.open; render(); return; }
-  if (e.target.classList.contains('modal-close') ||
-      (e.target.classList.contains('modal') && pressStartedOnBackdrop)) {
-    openId = null; render(); return;
-  }
+  if (tile) { showRecipe(tile.dataset.open); return; }
   if (!e.target.classList.contains('f-del')) return;
   if (!confirm('Dieses Rezept löschen?')) return;
   const id = e.target.closest('.item').dataset.id;
