@@ -259,8 +259,8 @@ document.getElementById('tabtools').addEventListener('click', async e => {
     try { localStorage.setItem('rezepte-view', view); } catch (e) {}
     render();
   } else if (b.id === 'shareBtn') {
-    const link = shareLink();
-    try { await navigator.clipboard.writeText(link); toast('Link kopiert! Schick ihn z. B. per WhatsApp.'); }
+    const link = await shareLink();
+    try { await navigator.clipboard.writeText(link); toast(`Link kopiert (${link.length} Zeichen). Schick ihn z. B. per WhatsApp.`); }
     catch (err) { prompt('Link kopieren:', link); }
   }
 });
@@ -304,25 +304,96 @@ document.getElementById('list').addEventListener('click', e => {
 });
 
 // ---------- Teilen per Link (alle Daten stecken im Link, kein Server nötig) ----------
-function toB64(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+// Der Link ist so klein wie möglich: Tracking-Teile der Adressen fallen weg,
+// nur das Nötigste wird gespeichert und das Ganze wird zusätzlich komprimiert.
+
+function bytesToB64(bytes) {
+  let bin = '';
+  bytes.forEach(b => bin += String.fromCharCode(b));
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-function fromB64(b64) {
-  b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-  const bin = atob(b64);
-  return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+function b64ToBytes(b64) {
+  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
 }
-function shareLink() {
-  const data = { tabs: state.tabs, items: state.items.map(i => ({ url: i.url, kind: i.kind, vid: i.vid, short: i.short, photo: i.photo, title: i.title, author: i.author, note: i.note, tab: i.tab })) };
-  return location.origin + location.pathname + '#d=' + toB64(JSON.stringify(data));
+async function runStream(bytes, stream) {
+  const out = new Blob([bytes]).stream().pipeThrough(stream);
+  return new Uint8Array(await new Response(out).arrayBuffer());
 }
-function importFromHash() {
-  const m = location.hash.match(/^#d=(.+)$/);
-  if (!m) return;
+const canCompress = typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+
+// Adresse kürzen: bei TikTok/Instagram den Tracking-Teil nach "?" und das "https://" weglassen
+function shortUrl(u) {
+  if (/(tiktok|instagram)\.com/i.test(u)) u = u.split('?')[0];
+  return u.replace(/^https?:\/\//i, '');
+}
+function longUrl(u) { return /^https?:\/\//i.test(u) ? u : 'https://' + u; }
+
+// Alles, was sich ohne Internet direkt aus der Adresse ablesen lässt
+function detectSync(url) {
+  let m;
+  if (/tiktok\.com/i.test(url)) {
+    m = url.match(/\/(?:video|photo)\/(\d+)/);
+    return { kind: 'tiktok', vid: m ? m[1] : null, photo: /\/photo\//i.test(url), short: false };
+  }
+  if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i)))
+    return { kind: 'youtube', vid: m[1], photo: false, short: /shorts\//i.test(url) };
+  if ((m = url.match(/instagram\.com\/(p|reel|reels|tv)\/([\w-]+)/i)))
+    return { kind: 'instagram', vid: (m[1] === 'reels' ? 'reel' : m[1]) + '/' + m[2], photo: false, short: false };
+  return { kind: 'link', vid: null, photo: false, short: false };
+}
+
+async function shareLink() {
+  const rows = state.items.map(i => {
+    const d = detectSync(i.url);
+    const row = [
+      shortUrl(i.url), i.title || '', i.note || '', state.tabs.indexOf(i.tab),
+      (i.vid && i.vid !== d.vid) ? i.vid : '',     // nur wenn die ID nicht in der Adresse steckt (Kurzlinks)
+      (i.photo && !d.photo) ? 1 : 0
+    ];
+    while (row.length > 4 && !row[row.length - 1]) row.pop();
+    return row;
+  });
+  const bytes = new TextEncoder().encode(JSON.stringify({ t: state.tabs, i: rows }));
+  const base = location.origin + location.pathname;
+  if (canCompress) {
+    try { return base + '#z=' + bytesToB64(await runStream(bytes, new CompressionStream('deflate-raw'))); } catch (e) {}
+  }
+  return base + '#u=' + bytesToB64(bytes);
+}
+
+// Kompaktes Format wieder in normale Rezepte umwandeln
+function expand(d) {
+  const tabs = d.t || [];
+  return {
+    tabs,
+    items: (d.i || []).map(([u, title, note, ti, vid, photo]) => {
+      const url = longUrl(u);
+      const det = detectSync(url);
+      const v = vid || det.vid;
+      return {
+        url, vid: v, short: det.short, photo: !!photo || det.photo,
+        kind: (det.kind === 'tiktok' && !v) ? 'link' : det.kind,
+        title: title || '', author: '', note: note || '',
+        tab: tabs[ti] || tabs[0] || 'Sonstiges'
+      };
+    })
+  };
+}
+
+async function importFromHash() {
+  const m = location.hash.match(/^#([zud])=(.+)$/);
+  if (!m) return false;
   try {
-    const data = JSON.parse(fromB64(m[1]));
+    let data;
+    if (m[1] === 'd') {
+      // altes Link-Format (aus früheren Versionen)
+      data = JSON.parse(new TextDecoder().decode(b64ToBytes(m[2])));
+    } else {
+      let bytes = b64ToBytes(m[2]);
+      if (m[1] === 'z') bytes = await runStream(bytes, new DecompressionStream('deflate-raw'));
+      data = expand(JSON.parse(new TextDecoder().decode(bytes)));
+    }
     let added = 0;
     (data.tabs || []).forEach(t => { if (!state.tabs.includes(t)) state.tabs.push(t); });
     (data.items || []).forEach(i => {
@@ -334,7 +405,8 @@ function importFromHash() {
     toast(added ? `${added} Rezept(e) übernommen 🎉` : 'Alles schon vorhanden.');
   } catch (e) { toast('Der geteilte Link ist kaputt.'); }
   history.replaceState(null, '', location.pathname);
+  return true;
 }
 
-importFromHash();
 render();
+importFromHash().then(imported => { if (imported) render(); });
