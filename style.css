@@ -176,4 +176,13 @@ textarea { width: 100%; min-height: 140px; resize: vertical; }
 .modal .item { margin-bottom: 0; }
 
 /* Suche */
-.search { width: 100%; margin-bottom: 12px; }
+input.search {
+  display: block;
+  width: 100%;
+  margin: 4px 0 14px;
+  padding: 14px 16px;
+  font-size: 1.05rem;
+  border-radius: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+}
