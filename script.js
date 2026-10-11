@@ -116,10 +116,16 @@ function render() {
   tools.insertAdjacentHTML('afterbegin', `<button id="viewBtn">${view === 'list' ? '▦ Kachel-Ansicht' : '☰ Listen-Ansicht'}</button>`);
 
   // Liste
-  const items = state.items.filter(i => active === 'Alle' || i.tab === active);
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const items = state.items.filter(i =>
+    (active === 'Alle' || i.tab === active) &&
+    (!q || [i.title, i.note, i.author, i.tab].join(' ').toLowerCase().includes(q))
+  );
   const list = document.getElementById('list');
   if (!items.length) {
-    list.innerHTML = `<div class="empty">Noch nichts da. Füge oben einen Link ein 👆</div>`;
+    list.innerHTML = q
+      ? `<div class="empty">Nichts gefunden für „${esc(q)}" 🤷</div>`
+      : `<div class="empty">Noch nichts da. Füge oben einen Link ein 👆</div>`;
     return;
   }
   const cardHTML = it => `
@@ -212,6 +218,13 @@ document.getElementById('addForm').addEventListener('submit', async e => {
   save(); input.value = '';
   btn.disabled = false; btn.textContent = 'Hinzufügen';
   render();
+});
+
+// Suche: filtert Titel, Notizen und Autor im gerade gewählten Reiter
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { openId = null; render(); }, 200);
 });
 
 document.getElementById('tabs').addEventListener('click', e => {

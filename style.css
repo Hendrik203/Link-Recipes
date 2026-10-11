@@ -174,3 +174,6 @@ textarea { width: 100%; min-height: 140px; resize: vertical; }
 .modal-card { max-width: 760px; margin: 0 auto; }
 .modal-close { display: block; margin: 0 0 10px auto; }
 .modal .item { margin-bottom: 0; }
+
+/* Suche */
+.search { width: 100%; margin-bottom: 12px; }
