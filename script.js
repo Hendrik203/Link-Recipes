@@ -1,4 +1,7 @@
 // ---------- Daten (werden im Browser/Handy gespeichert) ----------
+// Ohne sync.js (reine Browser-Version): immer bearbeiten, kein Abgleich über GitHub
+if (typeof canEdit === 'undefined') { var canEdit = () => true; }
+
 const KEY = 'rezepte-v1';
 let state = load();
 let active = 'Alle';
@@ -421,5 +424,12 @@ async function importFromHash() {
   return true;
 }
 
+// ---------- Nach-oben-Knopf (erscheint, sobald man ein Stück nach unten gescrollt hat) ----------
+const toTopBtn = document.getElementById('toTop');
+if (toTopBtn) {
+  window.addEventListener('scroll', () => toTopBtn.classList.toggle('show', window.scrollY > 500), { passive: true });
+  toTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+}
+
 render();
-importFromHash().then(imported => { if (imported) render(); }).then(initSync);
+importFromHash().then(imported => { if (imported) render(); }).then(() => { if (typeof initSync === 'function') initSync(); });

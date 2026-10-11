@@ -204,3 +204,39 @@ input.search {
 .readonly .f-del { display: none; }
 .readonly .info input[readonly],
 .readonly .info textarea[readonly] { border-color: transparent; background: transparent; padding-left: 0; }
+
+/* Nach-oben-Knopf */
+#toTop {
+  position: fixed; right: 16px; bottom: 16px; z-index: 5;
+  width: 46px; height: 46px; padding: 0;
+  border-radius: 50%;
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+  font-size: 1.4rem; line-height: 1; font-weight: 700;
+  box-shadow: 0 4px 14px #0008;
+  opacity: 0; pointer-events: none; transform: translateY(10px);
+  transition: opacity .2s, transform .2s;
+}
+#toTop.show { opacity: 1; pointer-events: auto; transform: none; }
+
+/* Handy: alles etwas kleiner */
+@media (max-width: 600px) {
+  html { font-size: 15px; }
+  body { padding: 12px; }
+  h1 { font-size: 1.25rem; margin: 2px 0 10px; }
+  /* 16px bei Eingabefeldern verhindert, dass das iPhone beim Antippen hineinzoomt */
+  input, select, textarea { font-size: 16px; padding: 9px 11px; }
+  input.search { font-size: 16px; padding: 11px 13px; margin: 2px 0 10px; }
+  button { font-size: .9rem; }
+  .tabs { gap: 6px; }
+  .tab { padding: 6px 12px; }
+  .tabtools { gap: 6px; margin-bottom: 12px; }
+  .tabtools button { font-size: .8rem; padding: 5px 9px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .tile-title { font-size: .8rem; padding: 22px 8px 8px; }
+  .item { padding: 12px; margin-bottom: 14px; }
+  .item h2 { font-size: .98rem; }
+  .video .tt { max-width: 290px; }
+  .video .tt-photo { width: 290px; height: 660px; }
+  .video .yt.short { width: 280px; }
+  #toTop { width: 42px; height: 42px; right: 12px; bottom: 12px; }
+}
