@@ -19,7 +19,12 @@ function load() {
   } catch (e) {}
   return { tabs: ['Hauptgerichte', 'Snacks', 'Süßes'], items: [] };
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+function saveLocal() { localStorage.setItem(KEY, JSON.stringify(state)); }
+// Nach jeder Änderung: im Browser speichern und (falls freigeschaltet) in die Datei auf GitHub (sync.js)
+function save() {
+  saveLocal();
+  if (typeof onLocalChange === 'function') onLocalChange();
+}
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -95,6 +100,8 @@ function embedHTML(it) {
 
 // ---------- Rendering ----------
 function render() {
+  // Ohne Freischaltung (z. B. bei Mama) nur ansehen: Eingabe- und Bearbeiten-Knöpfe werden ausgeblendet
+  document.body.classList.toggle('readonly', !canEdit());
   // Dropdown zum Hinzufügen
   const sel = document.getElementById('tabSelect');
   const keep = sel.value;
@@ -125,9 +132,11 @@ function render() {
   if (!items.length) {
     list.innerHTML = q
       ? `<div class="empty">Nichts gefunden für „${esc(q)}" 🤷</div>`
-      : `<div class="empty">Noch nichts da. Füge oben einen Link ein 👆</div>`;
+      : `<div class="empty">${canEdit() ? 'Noch nichts da. Füge oben einen Link ein 👆' : 'Hier gibt es noch keine Rezepte.'}</div>`;
     return;
   }
+  const ro = canEdit() ? '' : 'readonly';
+  const dis = canEdit() ? '' : 'disabled';
   const cardHTML = it => `
     <div class="item" data-id="${it.id}">
       <h2>${esc(it.title || 'Ohne Titel')}</h2>
@@ -138,10 +147,10 @@ function render() {
         <div class="info">
           <div><small>Link</small><br><a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.url)}</a></div>
           ${it.author ? `<div><small>Von</small><br>${esc(it.author)}</div>` : ''}
-          <div><small>Titel</small><br><input class="f-title" value="${esc(it.title)}"></div>
-          <div><small>Notizen / Rezept</small><br><textarea class="f-note">${esc(it.note)}</textarea></div>
+          <div><small>Titel</small><br><input class="f-title" value="${esc(it.title)}" ${ro}></div>
+          <div><small>Notizen / Rezept</small><br><textarea class="f-note" ${ro}>${esc(it.note)}</textarea></div>
           <div class="row">
-            <select class="f-tab">${state.tabs.map(t => `<option ${t === it.tab ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+            <select class="f-tab" ${dis}>${state.tabs.map(t => `<option ${t === it.tab ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
             <button class="f-del danger">Löschen</button>
           </div>
         </div>
@@ -384,6 +393,10 @@ function expand(d) {
 async function importFromHash() {
   const m = location.hash.match(/^#([zud])=(.+)$/);
   if (!m) return false;
+  if (!canEdit()) {                       // nur ansehen: die Rezepte kommen aus der Datei auf GitHub
+    history.replaceState(null, '', location.pathname);
+    return false;
+  }
   try {
     let data;
     if (m[1] === 'd') {
@@ -409,4 +422,4 @@ async function importFromHash() {
 }
 
 render();
-importFromHash().then(imported => { if (imported) render(); });
+importFromHash().then(imported => { if (imported) render(); }).then(initSync);
