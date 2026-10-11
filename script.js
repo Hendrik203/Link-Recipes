@@ -280,10 +280,18 @@ document.getElementById('list').addEventListener('change', e => {
   const it = state.items.find(i => i.id === card.dataset.id);
   if (it && e.target.classList.contains('f-tab')) { it.tab = e.target.value; save(); render(); }
 });
+// Merken, wo der Klick angefangen hat: Wer im Rezept Text markiert und die Maus
+// außerhalb loslässt, soll das Rezept nicht versehentlich schließen.
+let pressStartedOnBackdrop = false;
+document.getElementById('list').addEventListener('pointerdown', e => {
+  pressStartedOnBackdrop = e.target.classList.contains('modal');
+});
+
 document.getElementById('list').addEventListener('click', e => {
   const tile = e.target.closest('.tile');
   if (tile) { openId = tile.dataset.open; render(); return; }
-  if (e.target.classList.contains('modal-close') || e.target.classList.contains('modal')) {
+  if (e.target.classList.contains('modal-close') ||
+      (e.target.classList.contains('modal') && pressStartedOnBackdrop)) {
     openId = null; render(); return;
   }
   if (!e.target.classList.contains('f-del')) return;

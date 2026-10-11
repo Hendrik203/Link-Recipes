@@ -61,7 +61,7 @@ button.primary {
 }
 
 /* Tabs */
-.tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 10px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .tab { white-space: nowrap; border-radius: 999px; padding: 8px 16px; }
 .tab.active {
   background: var(--accent);
