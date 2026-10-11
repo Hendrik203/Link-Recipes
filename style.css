@@ -240,3 +240,11 @@ input.search {
   .video .yt.short { width: 280px; }
   #toTop { width: 42px; height: 42px; right: 12px; bottom: 12px; }
 }
+
+/* Pinterest-Pins */
+.video .pin { width: 100%; max-width: 360px; height: 560px; }
+@media (max-width: 600px) { .video .pin { max-width: 320px; height: 520px; } }
+
+/* Hinweis-Link unter Instagram/Pinterest-Einbettungen */
+.embedlink { display: block; text-align: center; font-size: .85rem; color: var(--muted); margin: -4px 0 12px; text-decoration: none; }
+.embedlink:hover { color: var(--accent); }

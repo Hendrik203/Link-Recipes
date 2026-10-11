@@ -2,11 +2,16 @@
 // Ohne sync.js (reine Browser-Version): immer bearbeiten, kein Abgleich über GitHub
 if (typeof canEdit === 'undefined') { var canEdit = () => true; }
 
-const KEY = 'rezepte-v1';
+// Alle Seiten unter demselben NAME.github.io teilen sich den Browser-Speicher. Damit eine zweite
+// Rezepte-Seite (ohne sync.js) nicht dieselben Rezepte zeigt, bekommt sie einen eigenen Speicherplatz
+// pro Repository-Namen. Die Sync-Version behält den bisherigen Speicherplatz (deine Rezepte bleiben).
+const SCOPE = (typeof REPO !== 'undefined' && REPO) ? '' : '-lokal-' + (location.pathname.split('/').filter(Boolean)[0] || 'root');
+const KEY = 'rezepte-v1' + SCOPE;
+const VIEW_KEY = 'rezepte-view' + SCOPE;
 let state = load();
 let active = 'Alle';
 let view = 'list';                 // 'list' = ganze Videos, 'tiles' = Kacheln
-try { view = localStorage.getItem('rezepte-view') || 'list'; } catch (e) {}
+try { view = localStorage.getItem(VIEW_KEY) || 'list'; } catch (e) {}
 let openId = null;                 // Rezept, das in der Kachel-Ansicht gerade geöffnet ist
 
 function load() {
@@ -75,11 +80,16 @@ async function analyze(url) {
     return info;
   }
   if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i))) {
-    return { kind: 'youtube', id: m[1], short: /shorts\//i.test(url), title: '', note: '', author: '' };
+    return { kind: 'youtube', id: m[1], short: /shorts\//i.test(url), title: 'YouTube-Video', note: '', author: '' };
   }
-  if ((m = url.match(/instagram\.com\/(p|reel|reels|tv)\/([\w-]+)/i))) {
-    return { kind: 'instagram', id: (m[1] === 'reels' ? 'reel' : m[1]) + '/' + m[2], title: '', note: '', author: '' };
+  if ((m = url.match(/instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/i))) {
+    return { kind: 'instagram', id: (m[1] === 'reels' ? 'reel' : m[1]) + '/' + m[2], title: 'Instagram-Beitrag', note: '', author: '' };
   }
+  if ((m = url.match(/pinterest\.[a-z.]+\/pin\/(\d+)/i))) {
+    return { kind: 'pinterest', id: m[1], title: 'Pinterest-Pin', note: '', author: '' };
+  }
+  if (/pin\.it\//i.test(url) || /pinterest\./i.test(url))
+    return { kind: 'link', id: null, title: 'Pinterest-Link', note: '', author: '' };
   return { kind: 'link', id: null, title: '', note: '', author: '' };
 }
 // info.id ist die Video-ID, gespeichert wird sie als "vid"
@@ -88,16 +98,22 @@ async function analyze(url) {
 const TT_PLAYER_OPTIONS = 'controls=1&progress_bar=1&play_button=1&volume_control=1&fullscreen_button=1&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0&closed_caption=0';
 
 function embedHTML(it) {
-  if (it.kind === 'tiktok')
+  // Kleiner Link unter Instagram/Pinterest, falls die Einbettung bei einem Beitrag nicht angezeigt wird
+  const openLink = `<a class="embedlink" href="${esc(it.url)}" target="_blank" rel="noopener">Wird nichts angezeigt? Link öffnen ↗</a>`;
+
+  if (it.kind === 'tiktok') {
     // Foto-Beiträge (zum Wischen) brauchen das normale Embed, der schlanke Player kann nur Videos
     if (it.photo || /\/photo\//i.test(it.url))
       return `<div class="video"><iframe class="tt-photo" loading="lazy" allowfullscreen src="https://www.tiktok.com/embed/v2/${esc(it.vid)}"></iframe></div>`;
     // Schlanker TikTok-Player: nur Video + Play/Pause, ohne Profil, Likes, Kommentare, Beschreibung
     return `<div class="video"><iframe class="tt" loading="lazy" allowfullscreen allow="encrypted-media; fullscreen" src="https://www.tiktok.com/player/v1/${esc(it.vid)}?${TT_PLAYER_OPTIONS}"></iframe></div>`;
+  }
   if (it.kind === 'youtube')
     return `<div class="video"><iframe class="yt ${it.short ? 'short' : ''}" loading="lazy" allowfullscreen src="https://www.youtube.com/embed/${esc(it.vid)}"></iframe></div>`;
   if (it.kind === 'instagram')
-    return `<div class="video"><iframe class="ig" loading="lazy" allowfullscreen src="https://www.instagram.com/${esc(it.vid)}/embed"></iframe></div>`;
+    return `<div class="video"><iframe class="ig" loading="lazy" allowfullscreen src="https://www.instagram.com/${esc(it.vid)}/embed"></iframe></div>${openLink}`;
+  if (it.kind === 'pinterest')
+    return `<div class="video"><iframe class="pin" loading="lazy" src="https://assets.pinterest.com/ext/embed.html?id=${esc(it.vid)}"></iframe></div>${openLink}`;
   return `<a class="linkbtn" href="${esc(it.url)}" target="_blank" rel="noopener">🔗 Link öffnen</a>`;
 }
 
@@ -268,7 +284,7 @@ document.getElementById('tabtools').addEventListener('click', async e => {
   } else if (b.id === 'viewBtn') {
     view = view === 'list' ? 'tiles' : 'list';
     openId = null;
-    try { localStorage.setItem('rezepte-view', view); } catch (e) {}
+    try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
     render();
   } else if (b.id === 'shareBtn') {
     const link = await shareLink();
@@ -336,7 +352,7 @@ const canCompress = typeof CompressionStream !== 'undefined' && typeof Decompres
 
 // Adresse kürzen: bei TikTok/Instagram den Tracking-Teil nach "?" und das "https://" weglassen
 function shortUrl(u) {
-  if (/(tiktok|instagram)\.com/i.test(u)) u = u.split('?')[0];
+  if (/(tiktok|instagram|pinterest)\./i.test(u)) u = u.split('?')[0];
   return u.replace(/^https?:\/\//i, '');
 }
 function longUrl(u) { return /^https?:\/\//i.test(u) ? u : 'https://' + u; }
@@ -350,8 +366,10 @@ function detectSync(url) {
   }
   if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i)))
     return { kind: 'youtube', vid: m[1], photo: false, short: /shorts\//i.test(url) };
-  if ((m = url.match(/instagram\.com\/(p|reel|reels|tv)\/([\w-]+)/i)))
+  if ((m = url.match(/instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/i)))
     return { kind: 'instagram', vid: (m[1] === 'reels' ? 'reel' : m[1]) + '/' + m[2], photo: false, short: false };
+  if ((m = url.match(/pinterest\.[a-z.]+\/pin\/(\d+)/i)))
+    return { kind: 'pinterest', vid: m[1], photo: false, short: false };
   return { kind: 'link', vid: null, photo: false, short: false };
 }
 
